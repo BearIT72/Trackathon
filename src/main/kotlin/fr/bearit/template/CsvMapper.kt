@@ -20,19 +20,17 @@ class CsvMapper {
         }
 
         return file.readLines()
-            .filter { it.isNotBlank() }
-            .map { line ->
+            .filter { it.isNotBlank() }.mapNotNull { line ->
                 val parts = line.split(",", limit = 2)
                 if (parts.size < 2) {
                     println("Invalid line format: $line")
                     null
                 } else {
-                    GeoJsonFeature(
+                    GeoJsonFeature.fromJson(
                         id = parts[0],
-                        geoJson = parts[1]
+                        geoJsonString = parts[1]
                     )
                 }
             }
-            .filterNotNull()
     }
 }

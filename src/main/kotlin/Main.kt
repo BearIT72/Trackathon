@@ -18,6 +18,8 @@ fun main() {
     features.take(5).forEachIndexed { index, feature ->
         println("Feature ${index + 1}:")
         println("  ID: ${feature.id}")
-        println("  GeoJSON length: ${feature.geoJson.length} characters")
+        println("  Type: ${feature.type}")
+        println("  Geometry Type: ${feature.geometry.type}")
+        println("  GeoJSON: ${feature.toJson().take(50)}...")
     }
 }

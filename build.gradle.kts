@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm") version "2.1.21"
+    application
 }
 
 group = "fr.bearit.template"
@@ -11,6 +12,8 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.2")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
 }
 
 tasks.test {
@@ -18,4 +21,9 @@ tasks.test {
 }
 kotlin {
     jvmToolchain(21)
+}
+
+// Configure the main class for the application
+application {
+    mainClass.set("fr.bearit.template.MainKt")
 }
