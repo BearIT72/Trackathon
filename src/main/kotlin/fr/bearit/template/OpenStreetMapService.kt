@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import kotlin.math.*
 
 /**
  * Represents a Point of Interest from OpenStreetMap.
@@ -93,8 +94,6 @@ class OpenStreetMapService {
             out geom;
         """.trimIndent()
 
-        println(query)
-
         val url = "https://overpass-api.de/api/interpreter?data=${query.replace("\n", " ")}"
 
         val request = Request.Builder()
@@ -151,17 +150,26 @@ class OpenStreetMapService {
      * Extracts coordinates from a GeoJsonFeature and fetches points of interest.
      *
      * @param feature The GeoJsonFeature to extract coordinates from
-     * @return A list of points of interest found
+     * @param maxDistance The maximum distance in meters from the track to include points (default: 1000)
+     * @param maxResults The maximum number of results to return, sorted by distance (default: 10)
+     * @return A list of points of interest found, sorted by distance to the track
      */
-    fun getPointsOfInterestForFeature(feature: GeoJsonFeature): List<PointOfInterest> {
+    fun getPointsOfInterestForFeature(
+        feature: GeoJsonFeature, 
+        maxDistance: Double = 1000.0,
+        maxResults: Int = 10
+    ): List<PointOfInterest> {
         val boundingBox = calculateBoundingBox(feature)
         return if (boundingBox != null) {
-            fetchPointsOfInterestInBoundingBox(
+            val allPois = fetchPointsOfInterestInBoundingBox(
                 boundingBox.minLat,
                 boundingBox.minLon,
                 boundingBox.maxLat,
                 boundingBox.maxLon
             )
+
+            // Filter and sort POIs by distance to the track
+            filterPointsOfInterestByDistanceToTrack(allPois, feature, maxDistance, maxResults)
         } else {
             emptyList()
         }
@@ -284,5 +292,188 @@ class OpenStreetMapService {
             }
             else -> null
         }
+    }
+
+    /**
+     * Filters points of interest based on their distance to a track.
+     *
+     * @param pointsOfInterest The list of points of interest to filter
+     * @param feature The GeoJsonFeature representing the track
+     * @param maxDistance The maximum distance in meters from the track to include points
+     * @param maxResults The maximum number of results to return, sorted by distance
+     * @return A filtered and sorted list of points of interest
+     */
+    private fun filterPointsOfInterestByDistanceToTrack(
+        pointsOfInterest: List<PointOfInterest>,
+        feature: GeoJsonFeature,
+        maxDistance: Double,
+        maxResults: Int
+    ): List<PointOfInterest> {
+        // If the feature is not a LineString, we can't calculate distances to a track
+        if (feature.geometry.type != "LineString") {
+            return pointsOfInterest.take(maxResults)
+        }
+
+        // Extract track coordinates
+        val trackCoordinates = extractTrackCoordinates(feature)
+        if (trackCoordinates.isEmpty()) {
+            return pointsOfInterest.take(maxResults)
+        }
+
+        // Calculate distance from each POI to the track
+        val poisWithDistance = pointsOfInterest.map { poi ->
+            val distance = calculateMinDistanceToTrack(poi.lat, poi.lon, trackCoordinates)
+            Pair(poi, distance)
+        }
+
+        // Filter by maximum distance and sort by distance (closest first)
+        return poisWithDistance
+            .filter { it.second <= maxDistance }
+            .sortedBy { it.second }
+            .take(maxResults)
+            .map { it.first }
+    }
+
+    /**
+     * Extracts track coordinates from a GeoJsonFeature.
+     *
+     * @param feature The GeoJsonFeature to extract coordinates from
+     * @return A list of coordinate pairs (latitude, longitude)
+     */
+    private fun extractTrackCoordinates(feature: GeoJsonFeature): List<Pair<Double, Double>> {
+        if (feature.geometry.type != "LineString") {
+            return emptyList()
+        }
+
+        val coordinates = mutableListOf<Pair<Double, Double>>()
+        val lineCoords = feature.geometry.coordinates as? List<*>
+
+        lineCoords?.forEach { point ->
+            (point as? List<*>)?.let {
+                if (it.size >= 2) {
+                    // GeoJSON uses [longitude, latitude] order
+                    coordinates.add(Pair(it[1] as Double, it[0] as Double))
+                }
+            }
+        }
+
+        return coordinates
+    }
+
+    /**
+     * Calculates the minimum distance from a point to a track.
+     *
+     * @param lat The latitude of the point
+     * @param lon The longitude of the point
+     * @param trackCoordinates The list of coordinate pairs representing the track
+     * @return The minimum distance in meters
+     */
+    private fun calculateMinDistanceToTrack(
+        lat: Double,
+        lon: Double,
+        trackCoordinates: List<Pair<Double, Double>>
+    ): Double {
+        if (trackCoordinates.isEmpty()) {
+            return Double.MAX_VALUE
+        }
+
+        if (trackCoordinates.size == 1) {
+            return calculateHaversineDistance(lat, lon, trackCoordinates[0].first, trackCoordinates[0].second)
+        }
+
+        var minDistance = Double.MAX_VALUE
+
+        // Calculate distance to each segment of the track
+        for (i in 0 until trackCoordinates.size - 1) {
+            val segmentStart = trackCoordinates[i]
+            val segmentEnd = trackCoordinates[i + 1]
+
+            val distance = calculateDistanceToSegment(
+                lat, lon,
+                segmentStart.first, segmentStart.second,
+                segmentEnd.first, segmentEnd.second
+            )
+
+            minDistance = min(minDistance, distance)
+        }
+
+        return minDistance
+    }
+
+    /**
+     * Calculates the distance from a point to a line segment.
+     *
+     * @param lat The latitude of the point
+     * @param lon The longitude of the point
+     * @param lat1 The latitude of the first endpoint of the segment
+     * @param lon1 The longitude of the first endpoint of the segment
+     * @param lat2 The latitude of the second endpoint of the segment
+     * @param lon2 The longitude of the second endpoint of the segment
+     * @return The distance in meters
+     */
+    private fun calculateDistanceToSegment(
+        lat: Double, lon: Double,
+        lat1: Double, lon1: Double,
+        lat2: Double, lon2: Double
+    ): Double {
+        // Calculate distances to the endpoints
+        val distToStart = calculateHaversineDistance(lat, lon, lat1, lon1)
+        val distToEnd = calculateHaversineDistance(lat, lon, lat2, lon2)
+
+        // Calculate the length of the segment
+        val segmentLength = calculateHaversineDistance(lat1, lon1, lat2, lon2)
+
+        // If the segment is very short, return the distance to either endpoint
+        if (segmentLength < 1.0) {
+            return min(distToStart, distToEnd)
+        }
+
+        // Calculate the projection of the point onto the segment
+        // This is an approximation for small distances
+        val x = (lon - lon1) * (lon2 - lon1) + (lat - lat1) * (lat2 - lat1)
+        val y = (lon2 - lon1) * (lon2 - lon1) + (lat2 - lat1) * (lat2 - lat1)
+        val ratio = x / y
+
+        // If the projection is outside the segment, return the distance to the closest endpoint
+        if (ratio < 0) {
+            return distToStart
+        }
+        if (ratio > 1) {
+            return distToEnd
+        }
+
+        // Calculate the projected point
+        val projLat = lat1 + ratio * (lat2 - lat1)
+        val projLon = lon1 + ratio * (lon2 - lon1)
+
+        // Return the distance to the projected point
+        return calculateHaversineDistance(lat, lon, projLat, projLon)
+    }
+
+    /**
+     * Calculates the distance between two points using the Haversine formula.
+     *
+     * @param lat1 The latitude of the first point
+     * @param lon1 The longitude of the first point
+     * @param lat2 The latitude of the second point
+     * @param lon2 The longitude of the second point
+     * @return The distance in meters
+     */
+    private fun calculateHaversineDistance(
+        lat1: Double, lon1: Double,
+        lat2: Double, lon2: Double
+    ): Double {
+        val earthRadius = 6371000.0 // Earth radius in meters
+
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+
+        val a = sin(dLat / 2) * sin(dLat / 2) +
+                cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
+                sin(dLon / 2) * sin(dLon / 2)
+
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        return earthRadius * c
     }
 }
