@@ -1,16 +1,23 @@
 package fr.bearit.template
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
-fun main() {
-    val name = "Kotlin"
-    //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-    // to see how IntelliJ IDEA suggests fixing it.
-    println("Hello, " + name + "!")
+import fr.bearit.template.CsvMapper
 
-    for (i in 1..5) {
-        //TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-        // for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-        println("i = $i")
+/**
+ * Main function that reads the CSV file and displays information about the GeoJSON features.
+ */
+fun main() {
+    val csvFilePath = "input/flat/id_geojson.csv"
+    val mapper = CsvMapper()
+
+    println("Reading GeoJSON features from CSV file: $csvFilePath")
+    val features = mapper.mapCsvToFeatures(csvFilePath)
+
+    println("Found ${features.size} features")
+
+    // Display some information about the first few features
+    features.take(5).forEachIndexed { index, feature ->
+        println("Feature ${index + 1}:")
+        println("  ID: ${feature.id}")
+        println("  GeoJSON length: ${feature.geoJson.length} characters")
     }
 }
