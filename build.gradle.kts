@@ -28,6 +28,9 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-jdbc:0.46.0")
     implementation("org.jetbrains.exposed:exposed-java-time:0.46.0")
 
+    // JxMapViewer2 for map display
+    implementation("org.jxmapviewer:jxmapviewer2:2.6")
+
     // Compose dependencies
     val composeVersion = "1.8.2"
 //    implementation("org.jetbrains.compose.desktop:desktop:$composeVersion")
@@ -47,5 +50,5 @@ kotlin {
 
 // Configure the main class for the application
 application {
-    mainClass.set("fr.bearit.template.ui.MinimalComposeAppKt")
+    mainClass.set("fr.bearit.template.ui.TrackathonAppKt")
 }

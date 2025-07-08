@@ -13,6 +13,7 @@ import androidx.compose.ui.window.rememberWindowState
 import fr.bearit.template.DatabaseService
 import fr.bearit.template.GeoJsonFeature
 import fr.bearit.template.PointOfInterest
+import fr.bearit.template.ui.MapView
 
 fun main() = application {
     Window(
@@ -116,6 +117,20 @@ fun DisplayTrackDetails(track: fr.bearit.template.Track) {
         Text("ID: ${track.id.value}")
         Text("Feature ID: ${feature.id}")
         Text("Coordinates count: ${feature.geometry.coordinates.size}")
+
+        // Map view
+        Text(
+            text = "Track Map",
+            style = MaterialTheme.typography.h6,
+            modifier = Modifier.padding(top = 16.dp)
+        )
+
+        // Add the map view with a fixed height
+        MapView(
+            feature = feature,
+            pointsOfInterest = pois,
+            modifier = Modifier.fillMaxWidth().height(300.dp)
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
