@@ -2,8 +2,17 @@ package fr.bearit.template
 
 /**
  * Main function that reads the CSV file and displays information about the GeoJSON features.
+ * If "ui" argument is passed, it launches the UI application instead.
  */
-fun mainT() {
+fun main(args: Array<String>) {
+    // Check if UI mode is requested
+    if (args.isNotEmpty() && args[0] == "ui") {
+        println("Launching UI application...")
+        fr.bearit.template.ui.main()
+        return
+    }
+
+    // Default behavior: CSV processing
     val csvFilePath = "input/flat/id_geojson.csv"
     val mapper = CsvMapper()
     val osmService = OpenStreetMapService()

@@ -2,6 +2,8 @@ package fr.bearit.template.ui
 
 import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -61,7 +63,7 @@ fun App() {
                     Row(modifier = Modifier.fillMaxSize()) {
                         // Track list
                         Column(
-                            modifier = Modifier.width(300.dp).fillMaxHeight(),
+                            modifier = Modifier.width(300.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
@@ -83,7 +85,7 @@ fun App() {
                         Spacer(modifier = Modifier.width(16.dp))
 
                         // Track details
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                             selectedTrackId?.let { trackId ->
                                 val track = tracks.find { it.id.value == trackId }
                                 if (track != null) {

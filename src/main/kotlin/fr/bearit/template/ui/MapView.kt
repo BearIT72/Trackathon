@@ -1,8 +1,14 @@
 package fr.bearit.template.ui
 
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.Button
+import androidx.compose.material.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.SwingPanel
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import fr.bearit.template.GeoJsonFeature
 import fr.bearit.template.PointOfInterest
 import org.jxmapviewer.JXMapViewer
@@ -14,6 +20,8 @@ import java.awt.BasicStroke
 import java.awt.Color
 import java.awt.Graphics2D
 import java.awt.Rectangle
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseWheelEvent
 import java.awt.geom.Point2D
 import java.util.*
 import javax.swing.SwingUtilities
@@ -34,6 +42,9 @@ fun MapView(
     // Create and configure the map viewer
     val mapViewer = remember { JXMapViewer() }
 
+    // State to track the current zoom level
+    var zoomLevel by remember { mutableStateOf(7) } // Default zoom level
+
     // Configure the map on first composition
     LaunchedEffect(feature, pointsOfInterest) {
         SwingUtilities.invokeLater {
@@ -41,11 +52,49 @@ fun MapView(
         }
     }
 
-    // Embed the Swing component in Compose
-    SwingPanel(
-        factory = { mapViewer },
-        modifier = modifier
-    )
+    // Update map zoom level when zoomLevel state changes
+    LaunchedEffect(zoomLevel) {
+        SwingUtilities.invokeLater {
+            mapViewer.zoom = zoomLevel
+        }
+    }
+
+    Box(modifier = modifier) {
+        // Embed the Swing component in Compose
+        SwingPanel(
+            factory = { mapViewer },
+            modifier = Modifier.fillMaxSize().padding(end = 56.dp, top = 84.dp) // Leave space for zoom buttons
+        )
+
+        // Zoom controls
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+                .zIndex(1f),  // Ensure zoom controls appear above the map
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // Zoom in button
+            Button(
+                onClick = {
+                    zoomLevel = maxOf(1, zoomLevel - 1) // Zoom in (decrease zoom level)
+                },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Text("+")
+            }
+
+            // Zoom out button
+            Button(
+                onClick = {
+                    zoomLevel = minOf(15, zoomLevel + 1) // Zoom out (increase zoom level)
+                },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Text("-")
+            }
+        }
+    }
 }
 
 /**
@@ -95,8 +144,78 @@ private fun configureMap(
     if (trackWaypoints.isNotEmpty()) {
         // Extract GeoPosition objects from waypoints
         val geoPositions = HashSet<GeoPosition>(trackWaypoints.map { it.position })
-        mapViewer.zoomToBestFit(geoPositions, 0.7)
+        mapViewer.zoomToBestFit(geoPositions, 0.9)
     }
+
+    // Add mouse wheel zoom functionality
+    mapViewer.addMouseWheelListener { e ->
+        if (e is MouseWheelEvent) {
+            // Get the current zoom level
+            var zoom = mapViewer.zoom
+
+            // Adjust zoom level based on wheel rotation
+            // Negative rotation means zoom in, positive means zoom out
+            if (e.wheelRotation < 0) {
+                zoom = maxOf(1, zoom - 1) // Zoom in (decrease zoom level)
+            } else {
+                zoom = minOf(15, zoom + 1) // Zoom out (increase zoom level)
+            }
+
+            // Set the new zoom level
+            mapViewer.zoom = zoom
+        }
+    }
+
+    // Add mouse drag functionality for panning
+    val mouseAdapter = object : MouseAdapter() {
+        private var lastX = 0
+        private var lastY = 0
+        private var isDragging = false
+
+        override fun mousePressed(e: java.awt.event.MouseEvent) {
+            // Record the starting point of the drag
+            lastX = e.x
+            lastY = e.y
+            isDragging = true
+        }
+
+        override fun mouseReleased(e: java.awt.event.MouseEvent) {
+            isDragging = false
+        }
+
+        override fun mouseDragged(e: java.awt.event.MouseEvent) {
+            if (isDragging) {
+                // Calculate the distance moved
+                val dx = lastX - e.x
+                val dy = lastY - e.y
+
+                // Update the last position
+                lastX = e.x
+                lastY = e.y
+
+                // Get the current center point
+                val center = mapViewer.centerPosition
+
+                // Convert pixel movement to geo-position movement
+                val pixelWidth = mapViewer.width
+                val pixelHeight = mapViewer.height
+                val geoWidth = mapViewer.tileFactory.getTileSize(mapViewer.zoom) * 
+                               (mapViewer.tileFactory.getInfo().getMaximumZoomLevel() - mapViewer.zoom + 1)
+                val geoHeight = geoWidth
+
+                // Calculate the new center position
+                val newLat = center.latitude + (dy * geoHeight / pixelHeight)
+                val newLon = center.longitude - (dx * geoWidth / pixelWidth)
+
+                // Set the new center position
+                mapViewer.centerPosition = GeoPosition(newLat, newLon)
+            }
+        }
+    }
+
+    // Add the mouse listeners
+    mapViewer.addMouseListener(mouseAdapter)
+    mapViewer.addMouseMotionListener(mouseAdapter)
 }
 
 /**
@@ -143,22 +262,32 @@ private fun createPoiWaypoints(pointsOfInterest: List<PointOfInterest>): List<Wa
  */
 private class TrackPainter(private val track: List<DefaultWaypoint>) : Painter<JXMapViewer> {
     override fun paint(g: Graphics2D, viewer: JXMapViewer, width: Int, height: Int) {
-        g.color = Color.RED
-        g.stroke = BasicStroke(2f)
+        g.color = Color.BLUE
+        g.stroke = BasicStroke(4f)
 
         val points = track.map { waypoint ->
             val point = viewer.tileFactory.geoToPixel(waypoint.position, viewer.zoom)
             Point2D.Double(point.x, point.y)
         }
 
-        // Draw the track as a line connecting all points
+        // Draw the track as a continuous line connecting all points
         val oldClip = g.clip
         g.clip = Rectangle(0, 0, width, height)
 
-        for (i in 0 until points.size - 1) {
-            val p1 = points[i]
-            val p2 = points[i + 1]
-            g.drawLine(p1.x.toInt(), p1.y.toInt(), p2.x.toInt(), p2.y.toInt())
+        // Create a path for the track
+        val path = java.awt.geom.Path2D.Double()
+
+        if (points.isNotEmpty()) {
+            // Move to the first point
+            path.moveTo(points[0].x, points[0].y)
+
+            // Add line segments to all other points
+            for (i in 1 until points.size) {
+                path.lineTo(points[i].x, points[i].y)
+            }
+
+            // Draw the path
+            g.draw(path)
         }
 
         g.clip = oldClip
