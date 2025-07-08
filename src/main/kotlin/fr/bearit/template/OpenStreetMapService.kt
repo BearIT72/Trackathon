@@ -213,7 +213,7 @@ class OpenStreetMapService {
      * @param pointsOfInterest The list of points of interest to filter
      * @param feature The GeoJsonFeature representing the track
      * @param maxDistance The maximum distance in meters from the track to include points
-     * @param maxResults The maximum number of results to return, sorted by distance
+     * @param maxResults The maximum number of results to return, sorted by position along the track
      * @return A filtered and sorted list of points of interest
      */
     private fun filterPointsOfInterestByDistanceToTrack(
@@ -233,18 +233,125 @@ class OpenStreetMapService {
             return pointsOfInterest.take(maxResults)
         }
 
-        // Calculate distance from each POI to the track
-        val poisWithDistance = pointsOfInterest.map { poi ->
+        // Calculate distance and position along track for each POI
+        val poisWithDistanceAndPosition = pointsOfInterest.map { poi ->
             val distance = calculateMinDistanceToTrack(poi.lat, poi.lon, trackCoordinates)
-            Pair(poi, distance)
+            val position = calculatePositionAlongTrack(poi.lat, poi.lon, trackCoordinates)
+            Triple(poi, distance, position)
         }
 
-        // Filter by maximum distance and sort by distance (closest first)
-        return poisWithDistance
+        // Filter by maximum distance and sort by position along the track
+        return poisWithDistanceAndPosition
             .filter { it.second <= maxDistance }
-            .sortedBy { it.second }
+            .sortedBy { it.third }  // Sort by position along track
             .take(maxResults)
             .map { it.first }
+    }
+
+    /**
+     * Calculates the position of a point along a track.
+     * The position is measured as the distance from the start of the track to the
+     * closest point on the track to the given point.
+     *
+     * @param lat The latitude of the point
+     * @param lon The longitude of the point
+     * @param trackCoordinates The list of coordinate pairs representing the track
+     * @return The position along the track in meters from the start
+     */
+    private fun calculatePositionAlongTrack(
+        lat: Double,
+        lon: Double,
+        trackCoordinates: List<Pair<Double, Double>>
+    ): Double {
+        if (trackCoordinates.isEmpty()) {
+            return 0.0
+        }
+
+        if (trackCoordinates.size == 1) {
+            return 0.0
+        }
+
+        var minDistance = Double.MAX_VALUE
+        var closestSegmentIndex = 0
+        var closestRatio = 0.0
+
+        // Find the closest segment and the projection ratio
+        for (i in 0 until trackCoordinates.size - 1) {
+            val segmentStart = trackCoordinates[i]
+            val segmentEnd = trackCoordinates[i + 1]
+
+            // Calculate distances to the endpoints
+            val distToStart = calculateHaversineDistance(lat, lon, segmentStart.first, segmentStart.second)
+            val distToEnd = calculateHaversineDistance(lat, lon, segmentEnd.first, segmentEnd.second)
+
+            // Calculate the length of the segment
+            val segmentLength = calculateHaversineDistance(
+                segmentStart.first, segmentStart.second,
+                segmentEnd.first, segmentEnd.second
+            )
+
+            // If the segment is very short, use distance to either endpoint
+            if (segmentLength < 1.0) {
+                val distance = min(distToStart, distToEnd)
+                if (distance < minDistance) {
+                    minDistance = distance
+                    closestSegmentIndex = i
+                    closestRatio = if (distToStart < distToEnd) 0.0 else 1.0
+                }
+                continue
+            }
+
+            // Calculate the projection of the point onto the segment
+            val x = (lon - segmentStart.second) * (segmentEnd.second - segmentStart.second) + 
+                    (lat - segmentStart.first) * (segmentEnd.first - segmentStart.first)
+            val y = (segmentEnd.second - segmentStart.second) * (segmentEnd.second - segmentStart.second) + 
+                    (segmentEnd.first - segmentStart.first) * (segmentEnd.first - segmentStart.first)
+            val ratio = x / y
+
+            // Calculate the distance to the segment
+            val distance: Double
+            val projRatio: Double
+
+            if (ratio < 0) {
+                distance = distToStart
+                projRatio = 0.0
+            } else if (ratio > 1) {
+                distance = distToEnd
+                projRatio = 1.0
+            } else {
+                // Calculate the projected point
+                val projLat = segmentStart.first + ratio * (segmentEnd.first - segmentStart.first)
+                val projLon = segmentStart.second + ratio * (segmentEnd.second - segmentStart.second)
+
+                distance = calculateHaversineDistance(lat, lon, projLat, projLon)
+                projRatio = ratio
+            }
+
+            if (distance < minDistance) {
+                minDistance = distance
+                closestSegmentIndex = i
+                closestRatio = projRatio
+            }
+        }
+
+        // Calculate the distance along the track to the closest point
+        var distanceAlongTrack = 0.0
+
+        // Add the lengths of all segments before the closest one
+        for (i in 0 until closestSegmentIndex) {
+            distanceAlongTrack += calculateHaversineDistance(
+                trackCoordinates[i].first, trackCoordinates[i].second,
+                trackCoordinates[i + 1].first, trackCoordinates[i + 1].second
+            )
+        }
+
+        // Add the partial length of the closest segment
+        distanceAlongTrack += closestRatio * calculateHaversineDistance(
+            trackCoordinates[closestSegmentIndex].first, trackCoordinates[closestSegmentIndex].second,
+            trackCoordinates[closestSegmentIndex + 1].first, trackCoordinates[closestSegmentIndex + 1].second
+        )
+
+        return distanceAlongTrack
     }
 
     /**

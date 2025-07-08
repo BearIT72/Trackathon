@@ -27,7 +27,7 @@ fun main() {
 
         // Display information about each point of interest
         if (pointsOfInterest.isNotEmpty()) {
-            println("  Points of Interest (sorted by distance to track):")
+            println("  Points of Interest (sorted by position along the track):")
             pointsOfInterest.forEach { poi ->
                 val name = poi.name ?: "Unnamed"
                 val type = poi.tags.entries.firstOrNull()?.let { "${it.key}=${it.value}" } ?: "Unknown type"
