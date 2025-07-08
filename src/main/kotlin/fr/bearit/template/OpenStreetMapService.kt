@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import java.net.URLEncoder
 import kotlin.math.*
 
 /**
@@ -495,5 +496,39 @@ class OpenStreetMapService {
         val c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
         return earthRadius * c
+    }
+
+    /**
+     * Creates a route URL linking all the points using the gh.dev-in.fr/maps API.
+     * Uses the first point of the track as the origin, the last point as the destination,
+     * and the ordered POIs as intermediary points.
+     *
+     * @param feature The GeoJsonFeature representing the track
+     * @param pointsOfInterest The list of points of interest, already ordered by position along the track
+     * @return The URL for the route
+     */
+    fun createRouteUrl(feature: GeoJsonFeature, pointsOfInterest: List<PointOfInterest>): String {
+        val trackCoordinates = extractTrackCoordinates(feature)
+        if (trackCoordinates.isEmpty()) {
+            return ""
+        }
+
+        val baseUrl = "https://gh.dev-in.fr/maps/"
+        val urlBuilder = StringBuilder(baseUrl)
+
+        // Add the first point of the track (origin)
+        val firstPoint = trackCoordinates.first()
+        urlBuilder.append("?point=${firstPoint.first},${firstPoint.second}")
+
+        // Add the ordered POIs as intermediary points
+        pointsOfInterest.forEach { poi ->
+            urlBuilder.append("&point=${poi.lat},${poi.lon}")
+        }
+
+        // Add the last point of the track (destination)
+        val lastPoint = trackCoordinates.last()
+        urlBuilder.append("&point=${lastPoint.first},${lastPoint.second}")
+
+        return urlBuilder.toString()
     }
 }

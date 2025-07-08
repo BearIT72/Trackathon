@@ -33,6 +33,11 @@ fun main() {
                 val type = poi.tags.entries.firstOrNull()?.let { "${it.key}=${it.value}" } ?: "Unknown type"
                 println("    - $name (${poi.lat}, ${poi.lon}) [$type]")
             }
+
+            // Create and display the route URL
+            val routeUrl = osmService.createRouteUrl(feature, pointsOfInterest)
+            println("  Route URL:")
+            println("    $routeUrl")
         }
 
         println()
