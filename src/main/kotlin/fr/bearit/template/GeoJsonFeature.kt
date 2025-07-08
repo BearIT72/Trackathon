@@ -6,19 +6,33 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 
 /**
- * Represents a GeoJSON feature with an ID.
+ * Represents the data of a GeoJSON feature.
  *
- * @property id The unique identifier of the feature
  * @property type The type of GeoJSON object (usually "Feature")
  * @property properties The properties of the feature
  * @property geometry The geometry of the feature
  */
-data class GeoJsonFeature(
-    val id: String,
+data class GeoJsonFeatureData(
     val type: String = "Feature",
     val properties: GeoJsonProperties = GeoJsonProperties(),
     val geometry: GeoJsonGeometry
+)
+
+/**
+ * Represents a GeoJSON feature with an ID.
+ *
+ * @property id The unique identifier of the feature
+ * @property data The data of the feature
+ */
+data class GeoJsonFeature(
+    val id: String,
+    val data: GeoJsonFeatureData
 ) {
+    // Provide direct access to the data properties for backward compatibility
+    val type: String get() = data.type
+    val properties: GeoJsonProperties get() = data.properties
+    val geometry: GeoJsonGeometry get() = data.geometry
+
     companion object {
         private val objectMapper: ObjectMapper = jacksonObjectMapper()
 
@@ -39,11 +53,14 @@ data class GeoJsonFeature(
             }
 
             val geoJsonData = objectMapper.readValue<GeoJsonData>(cleanedJson)
-            return GeoJsonFeature(
-                id = id,
+            val featureData = GeoJsonFeatureData(
                 type = geoJsonData.type,
                 properties = geoJsonData.properties,
                 geometry = geoJsonData.geometry
+            )
+            return GeoJsonFeature(
+                id = id,
+                data = featureData
             )
         }
     }
