@@ -138,5 +138,5 @@ data class GeoJsonProperties(
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class GeoJsonGeometry(
     val type: String,
-    val coordinates: Any
+    val coordinates: List<List<Double>>
 )

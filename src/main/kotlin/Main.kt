@@ -1,8 +1,5 @@
 package fr.bearit.template
 
-import fr.bearit.template.CsvMapper
-import fr.bearit.template.OpenStreetMapService
-
 /**
  * Main function that reads the CSV file and displays information about the GeoJSON features.
  */
@@ -19,17 +16,24 @@ fun main() {
     // Display information about each feature and fetch points of interest
     // Limit to first 5 features to avoid long processing times
     features.take(5).forEachIndexed { index, feature ->
-        println("Feature ${index + 1}:")
-        println("  ID: ${feature.id}")
-        println("  Type: ${feature.type}")
-        println("  Geometry Type: ${feature.geometry.type}")
+        println("ID: ${feature.id}")
+        println("  Coordinates count: ${feature.geometry.coordinates.size}")
 
-        // Fetch and display the count of points of interest
+        // Fetch and display points of interest
         println("  Fetching points of interest near coordinates...")
-        val poiCount = osmService.getPointsOfInterestCountForFeature(feature)
-        println("  Points of Interest Count: $poiCount")
+        val pointsOfInterest = osmService.getPointsOfInterestForFeature(feature)
+        println("  Points of Interest Count: ${pointsOfInterest.size}")
 
-        println("  GeoJSON: ${feature.toJson().take(50)}...")
+        // Display information about each point of interest
+        if (pointsOfInterest.isNotEmpty()) {
+            println("  Points of Interest:")
+            pointsOfInterest.forEach { poi ->
+                val name = poi.name ?: "Unnamed"
+                val type = poi.tags.entries.firstOrNull()?.let { "${it.key}=${it.value}" } ?: "Unknown type"
+                println("    - $name (${poi.lat}, ${poi.lon}) [$type]")
+            }
+        }
+
         println()
     }
 
