@@ -127,8 +127,11 @@ class OpenStreetMapService {
                 boundingBox.maxLon
             )
 
+            // Remove duplicate POIs before filtering by distance
+            val uniquePois = removeDuplicatePOIs(allPois)
+
             // Filter and sort POIs by distance to the track
-            filterPointsOfInterestByDistanceToTrack(allPois, feature, maxDistance, maxResults)
+            filterPointsOfInterestByDistanceToTrack(uniquePois, feature, maxDistance, maxResults)
         } else {
             emptyList()
         }
@@ -530,5 +533,48 @@ class OpenStreetMapService {
         urlBuilder.append("&point=${lastPoint.first},${lastPoint.second}")
 
         return urlBuilder.toString()
+    }
+
+    /**
+     * Removes duplicate POIs that are geographically close to each other.
+     * 
+     * @param pointsOfInterest The list of points of interest to filter
+     * @param proximityThreshold The maximum distance in meters to consider two POIs as duplicates (default: 50.0)
+     * @return A filtered list with duplicate POIs removed
+     */
+    private fun removeDuplicatePOIs(
+        pointsOfInterest: List<PointOfInterest>,
+        proximityThreshold: Double = 50.0
+    ): List<PointOfInterest> {
+        if (pointsOfInterest.size <= 1) {
+            return pointsOfInterest
+        }
+
+        val result = mutableListOf<PointOfInterest>()
+        val processed = mutableSetOf<Long>()
+
+        for (poi in pointsOfInterest) {
+            if (poi.id in processed) {
+                continue
+            }
+
+            result.add(poi)
+            processed.add(poi.id)
+
+            // Mark all POIs that are close to this one as processed
+            for (otherPoi in pointsOfInterest) {
+                if (otherPoi.id != poi.id && otherPoi.id !in processed) {
+                    val distance = calculateHaversineDistance(
+                        poi.lat, poi.lon,
+                        otherPoi.lat, otherPoi.lon
+                    )
+                    if (distance <= proximityThreshold) {
+                        processed.add(otherPoi.id)
+                    }
+                }
+            }
+        }
+
+        return result
     }
 }
