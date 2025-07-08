@@ -3,7 +3,7 @@ package fr.bearit.template
 /**
  * Main function that reads the CSV file and displays information about the GeoJSON features.
  */
-fun main() {
+fun mainT() {
     val csvFilePath = "input/flat/id_geojson.csv"
     val mapper = CsvMapper()
     val osmService = OpenStreetMapService()

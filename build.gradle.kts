@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm") version "2.1.21"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.2.0"
     application
 }
 
@@ -8,6 +9,8 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
+    google()
 }
 
 dependencies {
@@ -24,6 +27,15 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-dao:0.46.0")
     implementation("org.jetbrains.exposed:exposed-jdbc:0.46.0")
     implementation("org.jetbrains.exposed:exposed-java-time:0.46.0")
+
+    // Compose dependencies
+    val composeVersion = "1.8.2"
+//    implementation("org.jetbrains.compose.desktop:desktop:$composeVersion")
+    implementation("org.jetbrains.compose.desktop:desktop-jvm-macos-arm64:$composeVersion")
+    implementation("org.jetbrains.compose.material:material:$composeVersion")
+    implementation("org.jetbrains.compose.ui:ui:$composeVersion")
+    implementation("org.jetbrains.compose.foundation:foundation:$composeVersion")
+    implementation("org.jetbrains.compose.runtime:runtime:$composeVersion")
 }
 
 tasks.test {
@@ -35,5 +47,5 @@ kotlin {
 
 // Configure the main class for the application
 application {
-    mainClass.set("fr.bearit.template.MainKt")
+    mainClass.set("fr.bearit.template.ui.MinimalComposeAppKt")
 }
